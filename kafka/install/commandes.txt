@@ -1,0 +1,111 @@
+#Lancez le serveur Ubuntu :
+
+docker compose up -d
+
+# Se connecter au bash du serveur 
+
+docker compose exec ubuntu bash
+
+#Mise à jour du système
+
+apt update && apt upgrade
+
+#Installer wget et curl 
+
+apt install wget -y
+
+apt install curl -y
+
+#Installer Java
+
+apt install openjdk-11-jdk
+
+# Vérifier l'installation de Java
+
+java --version
+
+#Télécharger zookeeper et kafka 
+
+wget https://archive.apache.org/dist/kafka/2.8.0/kafka_2.13-2.8.0.tgz
+
+curl -O https://archive.apache.org/dist/kafka/2.8.0/kafka_2.13-2.8.0.tgz
+
+# Décompression
+
+tar -xzf kafka_2.13-2.8.0.tgz
+
+# Changer de repertoire
+
+cd kafka_2.13-2.8.0
+
+# Lister le contenu de bin
+
+ls -l ./bin
+
+# Lancer le service zookeeper
+
+sh ./bin/zookeeper-server-start.sh ./config/zookeeper.properties
+
+
+#Installer telnet
+
+apt install telnet
+
+
+#Vérifier la communication avec zookeeper
+
+telnet localhost 2181
+
+
+# Lancer le service kafka
+
+sh ./bin/kafka-server-start.sh ./config/server.properties
+
+#Créer un topic
+
+sh ./bin/kafka-topics.sh --bootstrap-server localhost:9092 --create --replication-factor 1 --partitions 1  --topic test
+
+#Créer un producer
+
+sh ./bin/kafka-console-producer.sh --bootstrap-server localhost:9092  --topic test
+
+#Créer un consumer
+
+sh ./bin/kafka-console-consumer.sh --bootstrap-server localhost:9092  --topic test  --from-beginning
+
+
+#Créer un second topic
+
+sh ./bin/kafka-topics.sh --bootstrap-server localhost:9092 --create --replication-factor 1 --partitions 5  --topic test-2
+
+#Lister la description des topics
+
+sh ./bin/kafka-topics.sh --bootstrap-server localhost:9092 --describe  --topic test-2
+
+sh ./bin/kafka-topics.sh --bootstrap-server localhost:9092 --describe  --topic test-2
+
+
+# Supprimer des topics
+#Lister la description des topics
+
+sh ./bin/kafka-topics.sh --bootstrap-server localhost:9092 --delete  --topic test-2
+
+sh ./bin/kafka-topics.sh --bootstrap-server localhost:9092 --delete  --topic test-2
+
+
+##################################################Cluster kafka ##########################
+
+Créer un topic
+
+sh ./bin/kafka-topics.sh --bootstrap-server localhost:9092,localhost:9093,localhost:9094 --create --replication-factor 1 --partitions 1  --topic test
+
+#Créer un producer
+
+sh ./bin/kafka-console-producer.sh --bootstrap-server localhost:9092,localhost:9093,localhost:9094  --topic test
+
+#Créer un consumer
+
+sh ./bin/kafka-console-consumer.sh --bootstrap-server localhost:9092,localhost:9093,localhost:9094 --topic test  --from-beginning
+
+
+

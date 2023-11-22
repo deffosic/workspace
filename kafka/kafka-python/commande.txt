@@ -1,0 +1,35 @@
+# Mise à jour système
+
+sudo apt update
+
+sudo apt upgrade
+
+# installer python3
+
+sudo apt install python3
+
+# Installer pip3
+
+sudo apt install python3-pip3
+
+# Vérifier python3
+
+python3 --version
+
+
+# Installer virtualenv
+
+pip3 install virtualenv
+
+# Créer un environnement virtualenv
+
+virtualenv kafka-env
+
+# Activer l'environnement
+
+source kafka-env/bin/activate
+
+# Installer les dependences pythons pour kafka
+
+pip install confluent-kafka
+

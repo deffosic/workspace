@@ -1,0 +1,12 @@
+version: '3'
+
+services:
+  ubuntu:
+    image: ubuntu:22.04
+    command: tail -f /dev/null
+    volumes:
+      - ./data:/data
+    ports:
+      - 9092:9092
+      - 9093:9093
+      - 9094:9094
