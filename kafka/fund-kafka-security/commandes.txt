@@ -1,0 +1,179 @@
+# Charger les images de zookeeper et kafka
+docker pull confluentinc/cp-zookeeper:7.1.1-1-ubi8
+docker pull confluentinc/cp-server:7.1.1-1-ubi8
+
+
+# Producer 
+
+docker run -it -v $PWD/getting-started.properties:/share/getting-started.properties confluentinc/cp-kafka:7.1.1-1-ubi8 kafka-console-producer --bootstrap-server pkc-lzvrd.us-west4.gcp.confluent.cloud:9092 --topic purchases --producer.config /share/getting-started.properties
+
+# Consumer
+
+docker run -it -v $PWD/getting-started.properties:/share/getting-started.properties confluentinc/cp-kafka:7.1.1-1-ubi8 kafka-console-consumer --bootstrap-server pkc-lzvrd.us-west4.gcp.confluent.cloud:9092 --topic purchases --from-beginning --consumer.config /share/getting-started.properties
+
+# Certificats
+
+openssl req -new -nodes \
+   -x509 \
+   -days 365 \
+   -newkey rsa:2048 \
+   -keyout /home/cedric/Desktop/workspace/kafka/fund-kafka-security/ca.key \
+   -out /home/cedric/Desktop/workspace/kafka/fund-kafka-security/ca.crt \
+   -config /home/cedric/Desktop/workspace/kafka/fund-kafka-security/ca.cnf
+
+# créer le fichier .pem
+
+cat /home/cedric/Desktop/workspace/kafka/fund-kafka-security/ca.crt /home/cedric/Desktop/workspace/kafka/fund-kafka-security/ca.key > /home/cedric/Desktop/workspace/kafka/fund-kafka-security/ca.pem
+
+# key serveur & certificat 
+
+openssl req -new \
+    -newkey rsa:2048 \
+    -keyout /home/cedric/Desktop/workspace/kafka/fund-kafka-security/kafka-1-creds/kafka-1.key \
+    -out /home/cedric/Desktop/workspace/kafka/fund-kafka-security/kafka-1-creds/kafka-1.csr \
+    -config /home/cedric/Desktop/workspace/kafka/fund-kafka-security/kafka-1-creds/kafka-1.cnf \
+    -nodes
+
+# Signer le certificat
+openssl x509 -req \
+    -days 3650 \
+    -in /home/cedric/Desktop/workspace/kafka/fund-kafka-security/kafka-1-creds/kafka-1.csr \
+    -CA /home/cedric/Desktop/workspace/kafka/fund-kafka-security/ca.crt \
+    -CAkey /home/cedric/Desktop/workspace/kafka/fund-kafka-security/ca.key \
+    -CAcreateserial \
+    -out /home/cedric/Desktop/workspace/kafka/fund-kafka-security/kafka-1-creds/kafka-1.crt \
+    -extfile /home/cedric/Desktop/workspace/kafka/fund-kafka-security/kafka-1-creds/kafka-1.cnf \
+    -extensions v3_req
+
+
+# convertir le certificat du serveur en pkcs12
+
+openssl pkcs12 -export \
+    -in /home/cedric/Desktop/workspace/kafka/fund-kafka-security/kafka-1-creds/kafka-1.crt \
+    -inkey /home/cedric/Desktop/workspace/kafka/fund-kafka-security/kafka-1-creds/kafka-1.key \
+    -chain \
+    -CAfile /home/cedric/Desktop/workspace/kafka/fund-kafka-security/ca.pem \
+    -name kafka-1 \
+    -out /home/cedric/Desktop/workspace/kafka/fund-kafka-security/kafka-1-creds/kafka-1.p12 \
+    -password pass:confluent
+
+
+# créer le serveur kerberos
+keytool -importkeystore \
+    -deststorepass confluent \
+    -destkeystore /home/cedric/Desktop/workspace/kafka/fund-kafka-security/kafka-1-creds/kafka.kafka-1.keystore.pkcs12 \
+    -srckeystore /home/cedric/Desktop/workspace/kafka/fund-kafka-security/kafka-1-creds/kafka-1.p12 \
+    -deststoretype PKCS12  \
+    -srcstoretype PKCS12 \
+    -noprompt \
+    -srcstorepass confluent
+
+# Vérification
+
+keytool -list -v \
+    -keystore /home/cedric/Desktop/workspace/kafka/fund-kafka-security/kafka-1-creds/kafka.kafka-1.keystore.pkcs12 \
+    -storepass confluent
+
+
+#sauvegarde 
+
+sudo tee /home/cedric/Desktop/workspace/kafka/fund-kafka-security/kafka-1-creds/kafka-1_sslkey_creds << EOF >/dev/null
+confluent
+EOF
+
+sudo tee /home/cedric/Desktop/workspace/kafka/fund-kafka-security/kafka-1-creds/kafka-1_keystore_creds << EOF >/dev/null
+confluent
+EOF
+
+
+
+# Même procéde pour Kafka-2 et kafka-3
+
+sudo /home/cedric/Desktop/workspace/kafka/fund-kafka-security/scripts/keystore-create-kafka-2-3.sh
+
+
+
+#Modifier sur tous les brokers
+
+KAFKA_SSL_KEYSTORE_CREDENTIALS: kafka-1_keystore_creds
+KAFKA_SSL_KEY_CREDENTIALS: kafka-1_sslkey_creds
+ 
+
+#Vérification des connections 
+
+openssl s_client -connect localhost:19093 -tls1_3 -showcerts
+
+openssl s_client -connect localhost:29093 -tls1_3 -showcerts
+
+openssl s_client -connect localhost:39093 -tls1_3 -showcerts
+
+
+# Télécharger Kafka
+
+curl -O https://archive.apache.org/dist/kafka/2.8.0/kafka_2.13-2.8.0.tgz
+
+# Décompression
+
+tar -xzf kafka_2.13-2.8.0.tgz
+
+# changer de repertoire 
+
+cd ./kafka_2.13-2.8.0/bin
+
+
+#créer un topic
+
+./kafka-topics.sh 
+    --bootstrap-server localhost:19092     --create     --topic test-topic     --replica-assignment 101:102:103
+
+
+# Monitorer le réseau 
+
+docker run --rm -it --net container:kafka-1  \
+    nicolaka/netshoot  \
+    tcpdump -c 40 -X port 19092 or port 19093
+
+# Créer un producer 
+sh kafka-console-producer.sh \
+    --bootstrap-server localhost:19092 \
+    --topic test-topic
+
+
+#certificat du client et trustore
+
+keytool -keystore /home/cedric/Desktop/workspace/kafka/fund-kafka-security/client-creds/kafka.client.truststore.pkcs12 \
+    -alias CARoot \
+    -import \
+    -file /home/cedric/Desktop/workspace/kafka/fund-kafka-security/ca.crt \
+    -storepass confluent  \
+    -noprompt \
+    -storetype PKCS12
+
+
+# run Producer
+sh kafka-console-producer.sh \
+    --bootstrap-server localhost:19093 \
+    --topic test-topic
+
+
+#  run producer ssl 
+
+sh kafka-console-producer.sh \
+    --bootstrap-server localhost:19093 \
+    --topic test-topic \
+    --producer.config /home/cedric/Desktop/workspace/kafka/fund-kafka-security/client-creds/client-ssl.properties
+
+# run consumer 
+sh kafka-console-consumer.sh  \
+    --bootstrap-server localhost:19092 \
+    --topic test-topic \
+    --from-beginning
+
+
+# run consumer ssl 
+sh kafka-console-consumer.sh \
+    --bootstrap-server localhost:19093 \
+    --topic test-topic \
+    --consumer.config /home/cedric/Desktop/workspace/kafka/fund-kafka-security/client-creds/client-ssl.properties \
+    --from-beginning
+
